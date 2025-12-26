@@ -47,9 +47,14 @@ public class CapacitorDownloaderPlugin extends Plugin {
                 }
             }
         };
+
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getContext().registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+
+        // Android 13+ has the registerReceiver overload that accepts flags.
+        // Android 14+ (targetSdk 34+) effectively requires choosing EXPORTED/NOT_EXPORTED in many cases. :contentReference[oaicite:1]{index=1}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // API 33+
+            // For DownloadManager completion, you generally want EXPORTED because the broadcast originates outside your app.
+            getContext().registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             getContext().registerReceiver(downloadReceiver, filter);
         }
@@ -261,12 +266,16 @@ public class CapacitorDownloaderPlugin extends Plugin {
     }
 
     @Override
-    protected void handleOnDestroy() {
-        super.handleOnDestroy();
-        if (downloadReceiver != null) {
+protected void handleOnDestroy() {
+    super.handleOnDestroy();
+    if (downloadReceiver != null) {
+        try {
             getContext().unregisterReceiver(downloadReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // receiver wasn't registered (or already unregistered)
         }
     }
+}
 
     @PluginMethod
     public void getPluginVersion(final PluginCall call) {
